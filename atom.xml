@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+    <id>https://mygalaxyz.github.io</id>
+    <title>MYGalaxyZ的奇妙冒险</title>
+    <updated>2021-08-13T10:19:11.686Z</updated>
+    <generator>https://github.com/jpmonette/feed</generator>
+    <link rel="alternate" href="https://mygalaxyz.github.io"/>
+    <link rel="self" href="https://mygalaxyz.github.io/atom.xml"/>
+    <subtitle>MYGalaxyZ的奇妙冒险</subtitle>
+    <logo>https://mygalaxyz.github.io/images/avatar.png</logo>
+    <icon>https://mygalaxyz.github.io/favicon.ico</icon>
+    <rights>All rights reserved 2021, MYGalaxyZ的奇妙冒险</rights>
+    <entry>
+        <title type="html"><![CDATA[渲染管线]]></title>
+        <id>https://mygalaxyz.github.io/post/xuan-ran-guan-xian/</id>
+        <link href="https://mygalaxyz.github.io/post/xuan-ran-guan-xian/">
+        </link>
+        <updated>2021-08-13T09:25:50.000Z</updated>
+        <content type="html"><![CDATA[<figure data-type="image" tabindex="1"><img src="https://mygalaxyz.github.io/post-images/1628846824583.png" alt="" loading="lazy"></figure>
+<h1 id="应用阶段">应用阶段</h1>
+<p>即应用软件本身的阶段，完全由开发者控制。具体可以分为数据准备、渲染设置、加速算法以及DrawCall。<br>
+<strong>数据准备：</strong><br>
+场景物体数据、摄像机数据、光照数据、阴影数据、其他全局数据<br>
+<strong>渲染设置：</strong><br>
+绘制设置、绘制顺序、渲染目标、渲染模式<br>
+<strong>加速算法：</strong><br>
+透视剔除、视锥体剔除等<br>
+<strong>Draw Call：</strong><br>
+CPU发给GPU的一条用来渲染网格的指令。</p>
+<p><em>CPU和GPU之间的数据传输</em><br>
+<img src="https://mygalaxyz.github.io/post-images/1628847016153.png" alt="" loading="lazy"><br>
+为了实现快速访问，所需的数据都需要从HDD传输到RAM中，然后再加载到VRAM，因为显卡访问VRAM的速度比从HDD或RAM的速度更快。但VRAM传输到GPU速度依旧太慢了！这时候就需要缓存，于是就设计出二级缓存（L2 Cache）和一级缓存（L1 Cache）。另外还需要一块用于GPU Core 的数据输入和输出的内存，那就是寄存器，GPU Core会从这里读取两个值进行运算，然后将运算结果放回寄存器。然后寄存器会将结果写回L1/L2/VRAM中，用于腾出寄存器的空间给新的数据。</p>
+<h1 id="几何阶段">几何阶段</h1>
+<h2 id="顶点着色器vertex-shader">顶点着色器（Vertex Shader）</h2>
+<p>顶点着色器是可编程的，主要用于顶点的空间变换和一些额外的附属数据，比如颜色、法线、纹理坐标等。顶点着色器只能修改顶点，不能增加和删除，并且顶点之间相互独立。因此在GPU中它可以在SM管理的每个线程中并行处理。<br>
+<em>顶点的空间变换</em><br>
+<img src="https://mygalaxyz.github.io/post-images/1628848130680.png" alt="" loading="lazy"><br>
+<strong>模型变换：</strong><br>
+每个模型都有自己独立的坐标，这就是模型坐标空间，我们需要将他们都变换到统一的坐标系，也就是世界空间。变换过程是按照缩放、错切、渲染、平移这么个顺序组成的矩阵进行变换，即先进行线性变换再进行非线性变换。<br>
+<strong>视图变换：</strong><br>
+视图变换的目的是将模型变换到摄像机的相对坐标中。也就是要将世界空间的坐标轴与摄像机的坐标轴重合，就可以完成变换。变换过程是先将摄像机位置移动至原点，然后再通过旋转矩阵将两者重合，即先进行非线性变换（平移）再进行线性变换（旋转）。<br>
+<strong>投影变换：</strong><br>
+投影变换的目的是将模型投影到二维平面中。投影会分为正交投影和透视投影。正交投影的变换过程是先将所有模型所以在空间的中心的移动至原点，然后将空间的坐标轴数值缩放到[-1,1]的标准立方体中。透视投影则要复杂很多，但简单总结起来就是先将透视的四棱台变成长方体，然后再进行正交投影。</p>
+<h2 id="曲面细分着色器以及几何着色器">曲面细分着色器以及几何着色器</h2>
+<p>曲面细分着色器和几何着色器都是可选的着色器，可根据具体的渲染决定是否使用。</p>
+<p><strong>曲面细分着色器（Tessellation Shader）：</strong><br>
+曲面细分着色器是可选的着色器，主要目的就是增加顶点数，可以配合置换贴图增加模型的细节。<br>
+主要分为以下几个阶段：外壳着色器阶段、细分阶段、域着色器阶段。<br>
+<strong>外壳着色器（Hull Shader）</strong><br>
+也称为细分控制着色器，主要起到一个数据传递的作用。可以通过细分计算因子，决定几何图元如何进行细分，比如我们可以通过摄像机的距离控制计算因子，距离摄像机近，可以增加细分数量。此外也可以指明细分器使用哪种基本形状（一般是三种基本形状：四边形、三角形、直线），以及控制图元的朝向。最后还要域着色器计算输入值。<br>
+<strong>曲面细分（Tessellation）</strong><br>
+这部分完全由GPU进行控制，将我们所设置好的数据交给几何处理引擎（Polymorph Engine）进行真正的曲面细分工作。最后得到新的顶点，由GPU进行分发，最后交给域着色器进行处理。<br>
+<strong>域着色器（Domain Shader）</strong><br>
+这部分主要用于计算顶点的最终位置。域着色器会得到外壳着色器输入过来的顶点数据以及曲面细分出入的重心坐标，然后重新计算顶点位置，这里可以使用置换贴图增加细节等，最后将计算后的数据输出到下一个阶段。</p>
+<p><strong>几何着色器（Geometry Shader）：</strong><br>
+几何着色器也是可选的着色器，可以创建和修改顶点，还可以改变最终的图元模式。比如：将一个点变成一个三角形。</p>
+<h2 id="裁剪clipping">裁剪（Clipping）</h2>
+<p>顶点转换到裁剪空间后，GPU就可以进行裁剪工作了。裁剪的目的是吧摄像机看不到的顶点剔除出去，在裁剪后就可以把顶点映射到屏幕空间了，但中间还有一个步骤，那就是齐次除法，也就是将齐次坐标的x、y、z坐标除以w分量，最后得到归一化设备坐标（Normalized Device Coordinates, NDC）。<br>
+<img src="https://mygalaxyz.github.io/post-images/1628848541206.png" alt="" loading="lazy"></p>
+<h2 id="屏幕坐标映射screen-mapping">屏幕坐标映射（Screen Mapping）</h2>
+<p>在进入这个阶段时，顶点坐标依旧是三维的。随后GPU进行计算后会把x、y坐标映射成屏幕的尺寸中，z坐标则会根据不同的API进行重新映射（OpenGL的[-1,+1]和DirectX的[0,1]），作为深度使用。最后窗口坐标和这个重新映射的z值被传递到光栅化阶段。<br>
+<img src="https://mygalaxyz.github.io/post-images/1628848793004.png" alt="" loading="lazy"></p>
+<h1 id="光栅化阶段">光栅化阶段</h1>
+<h2 id="三角形设置">三角形设置：</h2>
+<p>我们将收集而来顶点信息进行图元的装配，可以装配成三角形、线或者点。</p>
+<h2 id="三角形遍历">三角形遍历：</h2>
+<p>我们确定了三角形的边后就可以进行三角形遍历，也就是检查像素是否被三角形网格覆盖。覆盖则通过顶点之间进行差值计算出每个片元(fragment，可称之为像素)。这个过程称为 扫描变换（Scan Conversion）。<br>
+片元是一系列带有属性的图像元素，这些属性包括了屏幕坐标、深度值、法线坐标等，用于计算一个像素的最终颜色。所以可以把片元理解成一个像素的原型。<br>
+<img src="https://mygalaxyz.github.io/post-images/1628848871813.png" alt="" loading="lazy"></p>
+<h2 id="片元着色器fragment-shader">片元着色器（Fragment Shader）：</h2>
+<p>也可称为像素着色器（pixel shader）。片元着色器是完全可编程的，常用于计算和输出片元的颜色。通过光照模型和配合纹理贴图的使用，比如颜色贴图、法线贴图、凹凸贴图等，做到丰富模型的细节的作用。</p>
+<h1 id="逐片元操作">逐片元操作</h1>
+<h2 id="透明测试">透明测试：</h2>
+<p>当片元的透明度不满足设定的条件，那么就会被裁剪剔除掉。当使用透明测试时Early-Z会失效。</p>
+<h2 id="模板测试">模板测试：</h2>
+<p>如果开启了模板测试，GPU会首先读取（使用读取掩码）模板缓冲中该片元位置的模板值，然后将该值和读取到的参考值（reference value）进行比较，这个比较函数可以是由开发者指定的，例如小于时舍弃该片元，或者大于等于时舍弃该片元；如果这个片元没有通过这个测试，就会被舍弃。</p>
+<h2 id="深度测试">深度测试：</h2>
+<p>开启了深度测试，GPU会把该片元的深度值和已经存在于深度缓冲中的深度值进行比较；这个比较函数也是可由开发者设置的，例如小于时舍弃该片元，或者大于等于时舍弃该片元；通常这个比较函数是小于等于的关系，即如果这个片元的深度值大于等于当前深度缓冲中的值，那么就会舍弃它。</p>
+<h2 id="混合">混合：</h2>
+<p>混合的主要用途是将像素着色器里面的颜色与当前颜色缓冲的颜色进行混合，比如各种叠加方式。<br>
+<img src="https://mygalaxyz.github.io/post-images/1628848952243.png" alt="" loading="lazy"></p>
+<h1 id="目标缓冲区">目标缓冲区</h1>
+<p>在传统的前向渲染中，最终的输出只能在FrameBuffer或者RT中。但是现在可以利用MRT(multiple render target)技术输出到多个渲染目标中，比较常见的就是延迟渲染。</p>
+]]></content>
+    </entry>
+</feed>
